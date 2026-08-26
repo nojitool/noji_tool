@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>お客様サポートポータル</title>
 <style>
+  /* =========================================
+     ベーススタイルとデザイン設定（Nojima風）
+     ========================================= */
   :root {
-    --nojima-blue: #003B90; 
-    --nojima-red: #E60012;  
+    --nojima-blue: #003B90; /* コーポレートカラーの青 */
+    --nojima-red: #E60012;  /* アクセントカラーの赤 */
     --bg-color: #f4f6f9;
   }
   
@@ -18,7 +21,7 @@
     color: #333;
   }
 
-
+  /* ヘッダー */
   header {
     background-color: #fff;
     padding: 15px 20px;
@@ -40,14 +43,14 @@
     color: var(--nojima-red);
   }
 
-
+  /* メインコンテンツエリア */
   main {
     padding: 20px;
     max-width: 600px;
     margin: 0 auto;
   }
 
-
+  /* ページの切り替え用クラス */
   .page {
     display: none;
     animation: fadeIn 0.3s ease;
@@ -60,7 +63,7 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-
+  /* トップページのボタン */
   .btn-container {
     display: flex;
     flex-direction: column;
@@ -85,7 +88,7 @@
     box-shadow: 0 2px 3px rgba(0,0,0,0.1);
   }
 
-
+  /* 検索ボックス */
   .search-container {
     margin-bottom: 20px;
   }
@@ -103,7 +106,7 @@
     border-color: var(--nojima-blue);
   }
 
-
+  /* 一覧リスト */
   .item-list {
     list-style: none;
     padding: 0;
@@ -134,7 +137,7 @@
     word-break: break-all;
   }
   
-
+  /* バッジスタイル */
   .badge {
     font-size: 11px;
     padding: 3px 8px;
@@ -146,8 +149,8 @@
   .badge-pdf { background-color: var(--nojima-red); }
   .badge-html { background-color: var(--nojima-blue); }
   .badge-other { background-color: #888; }
-
   
+  /* アクションボタン */
   .item-actions {
     display: flex;
     gap: 8px;
@@ -171,7 +174,7 @@
     border: 1px solid var(--nojima-blue);
   }
 
-
+  /* ローディング表示など */
   #loading-msg {
     text-align: center;
     color: #666;
@@ -181,24 +184,24 @@
 </head>
 <body>
 
-
+  <!-- ヘッダー -->
   <header>
     <div id="logo" onclick="showPage('top')">
-      Noj<span>i</span>ma <span>Support</span>
+      Noj<span>i</span>ma <span>Support tool</span>
     </div>
   </header>
   
   <main>
     <div id="loading-msg">ファイル情報を読み込んでいます...</div>
 
-  
+    <!-- トップページ（フォルダ一覧） -->
     <div id="top-page" class="page">
       <div id="folder-buttons" class="btn-container">
-     
+        <!-- JSでフォルダボタンがここに自動生成されます -->
       </div>
     </div>
 
-  
+    <!-- ファイル一覧ページ -->
     <div id="list-page" class="page">
       <h2 id="list-title" style="color: var(--nojima-blue); text-transform: capitalize;">一覧</h2>
       <div class="search-container">
@@ -209,22 +212,29 @@
   </main>
   
   <script>
-   
-   //設定エリア
-    const GITHUB_USER = "nojitool";      
-    const GITHUB_REPO = "noji_tool";   
-    const GITHUB_BRANCH = "main";                   
+    // ==========================================
+    // 【設定エリア】 ご自身の環境に合わせて書き換えてください
+    // ==========================================
+    const GITHUB_USER = "nojitool";      // 例: "yamada-taro"
+    const GITHUB_REPO = "noji_tool";    // 例: "nojima-support-tools"
+    const GITHUB_BRANCH = "main";                   // 基本は "main" または "master"
 
     // ファイル名（拡張子抜き）を日本語タイトルに変換する辞書
+    // 設定がない場合は元のファイル名がそのまま表示されます。
     const NAME_MAPPING = {
-      "example": "例",
+      "cameramanual": "カメラ基礎マニュアル",
+      "aircon_calc": "エアコン電気代シミュレーター",
+      "tv_size": "インチ別最適視聴距離計算"
+      // "元のファイル名": "表示したい日本語", 
     };
 
-   
-    let repositoryData = {}; 
-    let currentFolder = "";  
+    // ==========================================
+    // システム変数・API連携
+    // ==========================================
+    let repositoryData = {}; // フォルダ名をキーにしたファイルの配列
+    let currentFolder = "";  // 現在表示しているフォルダ名
 
-   
+    // GitHub APIからリポジトリツリーを取得
     async function fetchRepositoryData() {
       const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`;
       
@@ -245,23 +255,23 @@
       }
     }
 
-  
+   // 取得したデータをフォルダごとに分類
     function processGitHubData(tree) {
       repositoryData = {};
       
       tree.forEach(item => {
-        
+        // ファイルのみを対象とし、index.html 自体は除外
         if (item.type === 'blob' && item.path !== 'index.html') {
           const pathParts = item.path.split('/');
           const fileName = pathParts.pop();
 
-          
+          // ▼▼ ここを追加：readme.md (大文字小文字問わず) を除外 ▼▼
           if (fileName.toLowerCase() === 'readme.md') {
-            return; 
+            return; // 処理をスキップして次のファイルへ
           }
-        
+          // ▲▲ ここまで ▲▲
 
-          const folderName = pathParts.length > 0 ? pathParts[0] : "ルート(直下)"; 
+          const folderName = pathParts.length > 0 ? pathParts[0] : "ルート(直下)"; // 第一階層をフォルダ名とする
 
           if (!repositoryData[folderName]) {
             repositoryData[folderName] = [];
@@ -274,40 +284,69 @@
       });
     }
 
-   
+    // ==========================================
+    // UI制御・描画
+    // ==========================================
+
+    // トップページにフォルダボタンを生成
     function generateFolderButtons() {
       const container = document.getElementById('folder-buttons');
       container.innerHTML = '';
 
+      // フォルダ表示名のマッピング定義
+      const folderLabels = {
+        "customer": "お客様用",
+        "staff": "スタッフ用",
+        "お客様用": "お客様用",
+        "スタッフ用": "スタッフ用"
+      };
+
       for (const folderName in repositoryData) {
         const btn = document.createElement('button');
         btn.className = 'btn-main';
-        btn.textContent = (folderName === 'customer' ? 'お客様用' : 
-                          folderName === 'staff' ? 'スタッフ用' : folderName) + ` (${repositoryData[folderName].length})`;
+        
+        // 表示するフォルダ名を取得（設定がない場合はそのままのフォルダ名）
+        const label = folderLabels[folderName] || folderName;
+        btn.textContent = `${label} (${repositoryData[folderName].length})`;
         
         btn.onclick = () => {
+          // スタッフ用フォルダの場合はパスワード確認を行う
+          if (folderName === 'staff' || folderName === 'スタッフ用') {
+            const inputPassword = prompt('パスワードを入力してください:');
+            
+            // キャンセルされた場合やパスワードが不一致の場合
+            if (inputPassword === null) {
+              return; // 処理を中止
+            }
+            if (inputPassword !== '046') {
+              alert('パスワードが正しくありません。');
+              return; // 一覧画面を開かずに終了
+            }
+          }
+
           currentFolder = folderName;
-          document.getElementById('list-title').textContent = folderName + ' 一覧';
+          document.getElementById('list-title').textContent = label + ' 一覧';
           showPage('list');
         };
         container.appendChild(btn);
       }
     }
 
-  
+    
+    // ページの表示切り替え
     function showPage(pageId) {
       document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
       
       if (pageId === 'top') {
         document.getElementById('top-page').classList.add('active');
       } else if (pageId === 'list') {
-        document.getElementById('file-search').value = ''; 
+        document.getElementById('file-search').value = ''; // 検索窓リセット
         renderFiles();
         document.getElementById('list-page').classList.add('active');
       }
     }
 
-   
+    // リストの描画処理（検索フィルタリング対応）
     function renderFiles() {
       const listElement = document.getElementById('file-list');
       const query = document.getElementById('file-search').value.toLowerCase();
@@ -316,20 +355,22 @@
       listElement.innerHTML = '';
 
       files.forEach(file => {
-       
+        // 拡張子と名前の分離
         const lastDotIdx = file.name.lastIndexOf('.');
         const ext = lastDotIdx !== -1 ? file.name.substring(lastDotIdx + 1).toLowerCase() : '';
         const rawName = lastDotIdx !== -1 ? file.name.substring(0, lastDotIdx) : file.name;
         
+        // マッピング辞書から表示名を取得（なければ元の名前）
         const displayName = NAME_MAPPING[rawName] || rawName;
-        
+
+        // 検索クエリが含まれていない場合はスキップ
         if (!displayName.toLowerCase().includes(query)) return;
 
-       
+        // --- HTML要素の構築 ---
         const li = document.createElement('li');
         li.className = 'item-card';
 
-        
+        // 情報エリア（名前＋バッジ）
         const infoDiv = document.createElement('div');
         infoDiv.className = 'item-info';
 
@@ -338,7 +379,7 @@
         nameSpan.textContent = displayName;
         infoDiv.appendChild(nameSpan);
 
-       
+        // バッジの付与
         const badgeSpan = document.createElement('span');
         badgeSpan.className = 'badge';
         if (ext === 'pdf') {
@@ -354,11 +395,11 @@
         infoDiv.appendChild(badgeSpan);
         li.appendChild(infoDiv);
 
-        
+        // アクションボタンエリア
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'item-actions';
 
-        
+        // 閲覧（開く）ボタン (全ファイル共通)
         const viewLink = document.createElement('a');
         viewLink.href = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${file.path}`;
         viewLink.className = 'btn-action btn-view';
@@ -366,7 +407,7 @@
         viewLink.textContent = ext === 'html' ? '開く' : '閲覧';
         actionsDiv.appendChild(viewLink);
 
-        
+        // PDFなど、HTML以外のファイルにはダウンロードボタンを付与
         if (ext !== 'html') {
           const dlLink = document.createElement('a');
           dlLink.href = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${file.path}`;
@@ -385,9 +426,11 @@
       }
     }
 
-    
+    // ==========================================
     // 初期化処理
+    // ==========================================
     window.onload = () => {
+      // ユーザー名が初期値のままなら警告を出す
       if (GITHUB_USER === "ここにユーザー名を入力") {
         document.getElementById('loading-msg').textContent = "HTML内の設定エリア（GITHUB_USER等）を書き換えてください。";
         document.getElementById('loading-msg').style.color = 'var(--nojima-red)';
