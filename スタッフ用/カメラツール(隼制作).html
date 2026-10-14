@@ -421,6 +421,88 @@
       overflow: hidden;
     }
 
+    .mobile-live-dock { display: none; }
+
+    .mobile-live-dock-header {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 6px 4px 10px;
+      border-bottom: 1px solid #303945;
+      color: #dbe3eb;
+      font-size: .74rem;
+      font-weight: 750;
+    }
+
+    .mobile-live-dock-header span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .mobile-live-dock-header span::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 10px rgba(121,233,155,.62);
+    }
+
+    .mobile-live-toggle {
+      min-height: 30px;
+      padding: 3px 10px;
+      border: 1px solid #46515e;
+      border-radius: 8px;
+      background: #202831;
+      color: #e6ebf1;
+      font-size: .7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mobile-live-stage {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 0 0 12px 12px;
+      background: #050708;
+      cursor: crosshair;
+      touch-action: manipulation;
+    }
+
+    #mobilePreviewCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .mobile-live-readout {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 7px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 7px;
+      background: rgba(3,6,8,.75);
+      color: white;
+      font-size: .72rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      text-shadow: 0 1px 3px rgba(0,0,0,.95);
+    }
+
+    .mobile-live-readout span { padding: 4px 3px; border-right: 1px solid rgba(255,255,255,.13); }
+    .mobile-live-readout span:last-child { border-right: 0; }
+    .mobile-live-dock.collapsed .mobile-live-stage { display: none; }
+
     .source-section { order: 1; }
     .mode-section { order: 2; }
     .settings-section { order: 3; }
@@ -692,6 +774,24 @@
       .lesson-strip { grid-template-columns: 1fr; }
     }
 
+    @media (max-width: 660px), (max-width: 900px) and (max-height: 520px) {
+      .control-panel { overflow: visible; }
+      .mobile-live-dock.active {
+        position: sticky;
+        top: calc(env(safe-area-inset-top, 0px) + 6px);
+        z-index: 60;
+        order: 0;
+        grid-column: 1 / -1;
+        display: block;
+        margin: 8px;
+        border: 1px solid #46525e;
+        border-radius: 13px;
+        background: rgba(13,17,21,.96);
+        box-shadow: 0 12px 32px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.035);
+        backdrop-filter: blur(12px);
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
@@ -768,6 +868,21 @@
       </section>
 
       <aside class="control-panel" aria-label="撮影設定">
+        <div class="mobile-live-dock collapsed" id="mobileLiveDock" hidden>
+          <div class="mobile-live-dock-header">
+            <span>調整中プレビュー</span>
+            <button class="mobile-live-toggle" id="mobileLiveToggle" type="button" aria-expanded="false">開く</button>
+          </div>
+          <div class="mobile-live-stage" id="mobileLiveStage" role="application" aria-label="調整中の写真・映像。タップすると測距点を移動できます">
+            <canvas id="mobilePreviewCanvas" aria-label="設定変更を反映した小型プレビュー"></canvas>
+            <div class="mobile-live-readout" aria-hidden="true">
+              <span id="mobileHudShutter">1/250</span>
+              <span id="mobileHudAperture">F2.8</span>
+              <span id="mobileHudIso">ISO 400</span>
+            </div>
+          </div>
+        </div>
+
         <section class="panel-section source-section">
           <p class="section-kicker">Image source</p>
           <div class="source-tabs" role="group" aria-label="写真の入力方法">
@@ -924,6 +1039,10 @@
       const $ = id => document.getElementById(id);
       const canvas = $('previewCanvas');
       const ctx = canvas.getContext('2d', { alpha: false });
+      const mobilePreviewCanvas = $('mobilePreviewCanvas');
+      const mobilePreviewCtx = mobilePreviewCanvas.getContext('2d', { alpha: false });
+      const compactPreviewQuery = window.matchMedia('(max-width: 660px), (max-width: 900px) and (max-height: 520px)');
+      let mobilePreviewCollapsed = true;
       const noiseCanvas = document.createElement('canvas');
       const noiseCtx = noiseCanvas.getContext('2d');
       const subjectCanvas = document.createElement('canvas');
@@ -1354,6 +1473,7 @@
         if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
         liveVideo.srcObject = null;
+        updateMobilePreviewDock();
       }
 
       function activateSource(source) {
@@ -1363,6 +1483,7 @@
         clearAiMask();
         setSourceButtons(source);
         updateScenarioBrief();
+        updateMobilePreviewDock();
         scheduleRender();
       }
 
@@ -1439,7 +1560,10 @@
       function renderCanvas(timestamp = 0) {
         raf = 0;
         const source = activeSource();
-        if (!source) return;
+        if (!source) {
+          updateMobilePreviewDock();
+          return;
+        }
         if (state.source === 'camera' && timestamp - lastLivePaint < 32) {
           scheduleRender();
           return;
@@ -1575,6 +1699,7 @@
           ctx.fillRect(0, 0, w, h);
           ctx.restore();
         }
+        updateMobilePreviewDock(true);
         if (state.source === 'camera') {
           segmentLiveFrame(timestamp || performance.now());
           scheduleRender();
@@ -1583,6 +1708,42 @@
 
       function scheduleRender() {
         if (!raf) raf = requestAnimationFrame(renderCanvas);
+      }
+
+      function updateMobilePreviewDock(copyFrame = false) {
+        const dock = $('mobileLiveDock');
+        const active = compactPreviewQuery.matches && Boolean(activeSource())
+          && (state.source !== 'camera' || Boolean(cameraStream));
+        dock.hidden = !active;
+        dock.classList.toggle('active', active);
+        dock.classList.toggle('collapsed', mobilePreviewCollapsed);
+        if (!active || mobilePreviewCollapsed || !copyFrame) return;
+
+        const rect = mobilePreviewCanvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(rect.height * dpr));
+        if (mobilePreviewCanvas.width !== width || mobilePreviewCanvas.height !== height) {
+          mobilePreviewCanvas.width = width;
+          mobilePreviewCanvas.height = height;
+        }
+        mobilePreviewCtx.setTransform(1, 0, 0, 1, 0, 0);
+        mobilePreviewCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, width, height);
+        $('mobileHudShutter').textContent = shutters[state.s].label;
+        $('mobileHudAperture').textContent = `F${apertures[state.a]}`;
+        $('mobileHudIso').textContent = `ISO ${isos[state.i]}`;
+      }
+
+      function setFocusFromPointer(event, target) {
+        const rect = target.getBoundingClientRect();
+        state.focusX = clamp((event.clientX - rect.left) / rect.width, .07, .93);
+        state.focusY = clamp((event.clientY - rect.top) / rect.height, .09, .84);
+        if (state.source !== 'sample') {
+          state.preferPersonMask = false;
+          setSourceStatus('タップした位置を主役にしています。F値を動かして背景ボケを確認できます。');
+        }
+        setAutofocus(false);
+        updateUI('focus');
       }
 
       function setDisabled() {
@@ -1768,18 +1929,19 @@
         setSourceStatus('写真を読み込んでいます…', 'busy');
         userImage.src = photoObjectUrl;
       });
-      $('screen').addEventListener('pointerdown', event => {
-        const rect = $('screen').getBoundingClientRect();
-        state.focusX = clamp((event.clientX - rect.left) / rect.width, .07, .93);
-        state.focusY = clamp((event.clientY - rect.top) / rect.height, .09, .84);
-        if (state.source !== 'sample') {
-          state.preferPersonMask = false;
-          setSourceStatus('タップした位置を主役にしています。F値を動かして背景ボケを確認できます。');
-        }
-        setAutofocus(false);
-        updateUI('focus');
+      $('screen').addEventListener('pointerdown', event => setFocusFromPointer(event, $('screen')));
+      $('mobileLiveStage').addEventListener('pointerdown', event => setFocusFromPointer(event, $('mobileLiveStage')));
+      $('mobileLiveToggle').addEventListener('click', event => {
+        event.stopPropagation();
+        mobilePreviewCollapsed = !mobilePreviewCollapsed;
+        event.currentTarget.textContent = mobilePreviewCollapsed ? '開く' : '縮小';
+        event.currentTarget.setAttribute('aria-expanded', mobilePreviewCollapsed ? 'false' : 'true');
+        updateMobilePreviewDock(!mobilePreviewCollapsed);
       });
-      window.addEventListener('resize', scheduleRender, { passive: true });
+      window.addEventListener('resize', () => {
+        updateMobilePreviewDock();
+        scheduleRender();
+      }, { passive: true });
       image.addEventListener('load', () => { imageReady = true; scheduleRender(); });
       image.addEventListener('error', () => {
         $('feedbackTitle').textContent = '写真を読み込めませんでした';
